@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 tavily-python
 python-dotenv
+docker

@@ -148,3 +148,44 @@
           "query": "Who is the founder of OpenAI?"
       }
   }'
+
+---
+
+### 5.2 `code_interpreter`
+
+- **描述**: 在一个高度安全、隔离的沙箱环境中执行 Python 代码片段，并返回其标准输出和标准错误。此工具无法访问网络或主机文件系统，确保了代码执行的安全性。
+
+- **输入参数 (`parameters`)**:
+
+| 参数名 | 类型   | 是否必需 | 默认值 | 描述                     |
+|----------|--------|----------|--------|--------------------------|
+| `code`   | string | **是**   | N/A    | 要在沙箱中执行的 Python 代码。 |
+
+
+- **输出 (`data` 字段内容)**:
+  成功时，`data` 字段是一个包含以下两个键的 JSON 对象：
+    - `stdout` (string): 代码执行后的标准输出内容。
+    - `stderr` (string): 代码执行期间产生的任何错误信息。如果代码成功运行，此字段将为空字符串。
+
+- **使用示例 (`curl`)**:
+  ```bash
+  curl -X POST 'https://tools.10110531.xyz/api/v1/execute_tool' \
+  --header 'Content-Type: application/json' \
+  --data '{
+      "tool_name": "code_interpreter",
+      "parameters": {
+          "code": "import sys\nprint('Hello from the sandbox!')\nprint('Error message', file=sys.stderr)"
+      }
+  }'
+  ```
+
+- **示例成功响应**:
+  ```json
+  {
+      "success": true,
+      "data": {
+          "stdout": "Hello from the sandbox!\n",
+          "stderr": "Error message\n"
+      }
+  }
+  ```
