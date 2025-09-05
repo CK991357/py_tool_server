@@ -1,4 +1,6 @@
 import docker
+import io
+import sys
 from pydantic import BaseModel, Field
 from docker.errors import DockerException, ContainerError
 
@@ -10,7 +12,8 @@ class CodeInterpreterInput(BaseModel):
 # --- Tool Class ---
 class CodeInterpreterTool:
     """
-    A tool for executing Python code in a secure, isolated Docker sandbox.
+    Executes Python code in a secure, isolated Docker sandbox.
+    Returns stdout/stderr. No network, no host filesystem, mem+CPU capped.
     """
     name = "python_sandbox"
     description = (
@@ -19,65 +22,58 @@ class CodeInterpreterTool:
     )
     input_schema = CodeInterpreterInput
 
+    # ---------- 生命周期 ----------
     def __init__(self):
-        """
-        Initializes the Docker client.
-        Raises an exception if Docker is not available.
-        """
         try:
             self.docker_client = docker.from_env()
-            # Ping the Docker daemon to ensure it's running
-            self.docker_client.ping()
-        except DockerException:
-            # This provides a clear error if the Docker daemon isn't running on the server
-            raise RuntimeError("Docker is not running or misconfigured. Please ensure the Docker daemon is active on the server.")
+            self.docker_client.ping()          # 确认 Docker 可用
+        except DockerException as e:
+            raise RuntimeError("Docker daemon not reachable") from e
 
+    # ---------- 执行入口 ----------
     async def execute(self, parameters: CodeInterpreterInput) -> dict:
-        """
-        Executes the provided Python code in a temporary, secure Docker container.
-        """
         image_name = "python:3.11-slim"
-        
-        # Security-focused container configuration
+        # 把用户代码写进容器内文件，避免 -c 单行语法问题
+        runner_script = (
+            "import sys, traceback\n"
+            "code = sys.stdin.read()\n"
+            "try:\n"
+            "    exec(code, {'__builtins__': {'print': print, 'len': len, 'range': range, "
+            "'str': str, 'int': int, 'float': float, 'bool': bool, "
+            "'list': list, 'dict': dict, 'set': set, 'tuple': tuple}})\n"
+            "except Exception as e:\n"
+            "    traceback.print_exc()\n"
+        )
+
         container_config = {
             "image": image_name,
-            "command": ["python", "-c", parameters.code],
-            "network_disabled": True,  # Disables all networking
-            "mem_limit": "256m",       # Hard memory limit
-            "cpu_period": 100000,      # CPU time period
-            "cpu_quota": 50000,        # 0.5 CPU core limit
-            "user": "1001:1001",       # Run as a non-root user (requires image support or setup)
-            "remove": True,            # Automatically remove the container on exit
-            "read_only": True,         # Make the container's root filesystem read-only
-            "detach": False,           # Run attached to get logs directly
+            "command": ["python", "-c", runner_script],
+            "network_disabled": True,   # 无网络
+            "mem_limit": "256m",        # 内存上限
+            "cpu_period": 100_000,
+            "cpu_quota": 50_000,        # 0.5 核
+            "user": "1001:1001",        # 非 root（镜像需存在 uid 1001）
+            "remove": True,             # 退出即删
+            "read_only": True,          # 只读根文件系统
+            "detach": False,            # 同步执行
             "stdout": True,
             "stderr": True,
         }
 
         try:
-            # Run the container and capture the output
-            output_bytes = self.docker_client.containers.run(**container_config)
-            stdout = output_bytes.decode('utf-8', errors='ignore')
+            # 把用户代码作为 stdin 喂给容器
+            output_bytes = self.docker_client.containers.run(
+                **container_config,
+                input=parameters.code.encode(),
+            )
+            stdout = output_bytes.decode(errors="ignore")
             stderr = ""
-            
-            return {
-                "success": True,
-                "data": {"stdout": stdout, "stderr": stderr}
-            }
+            return {"success": True, "data": {"stdout": stdout, "stderr": stderr}}
 
         except ContainerError as e:
-            # This error is raised when the code inside the container returns a non-zero exit code
-            stdout = e.stdout.decode('utf-8', errors='ignore') if e.stdout else ""
-            stderr = e.stderr.decode('utf-8', errors='ignore') if e.stderr else ""
-            
-            return {
-                "success": True, # The tool itself ran successfully, even if the code failed
-                "data": {"stdout": stdout, "stderr": stderr}
-            }
-            
+            stdout = (e.stdout or b"").decode(errors="ignore")
+            stderr = (e.stderr or b"").decode(errors="ignore")
+            return {"success": True, "data": {"stdout": stdout, "stderr": stderr}}
+
         except Exception as e:
-            # Handle other exceptions, e.g., image not found, Docker daemon error
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred while running the code interpreter: {str(e)}"
-            }
+            return {"success": False, "error": f"Sandbox error: {e}"}

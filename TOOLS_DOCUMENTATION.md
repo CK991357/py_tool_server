@@ -151,7 +151,7 @@
 
 ---
 
-### 5.2 `code_interpreter`
+### 5.2 `python_sandbox`
 
 - **描述**: 在一个高度安全、隔离的沙箱环境中执行 Python 代码片段，并返回其标准输出和标准错误。此工具无法访问网络或主机文件系统，确保了代码执行的安全性。
 
@@ -169,10 +169,10 @@
 
 - **使用示例 (`curl`)**:
   ```bash
-  curl -X POST 'https://tools.10110531.xyz/api/v1/execute_tool' \
+  curl -X POST 'https://tools.10110531.xyz/api/v1/python_sandbox' \
   --header 'Content-Type: application/json' \
   --data '{
-      "tool_name": "code_interpreter",
+      "tool_name": "python_sandbox",
       "parameters": {
           "code": "import sys\nprint('Hello from the sandbox!')\nprint('Error message', file=sys.stderr)"
       }
