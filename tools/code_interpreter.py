@@ -12,7 +12,7 @@ class CodeInterpreterTool:
     """
     A tool for executing Python code in a secure, isolated Docker sandbox.
     """
-    name = "code_interpreter"
+    name = "python_sandbox"
     description = (
         "Executes a snippet of Python code in a sandboxed environment and returns the output. "
         "This tool is secure and has no access to the internet or the host filesystem."
