@@ -1,0 +1,12 @@
+services:
+  python-sandbox:
+    build: .
+    ports:
+      - "8828:8828"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # 挂载Docker socket
+      - /usr/bin/docker:/usr/bin/docker:ro  # 挂载主机Docker CLI（可选）
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    user: "root"  # 使用root用户避免权限问题
