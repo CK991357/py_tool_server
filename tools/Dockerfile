@@ -18,11 +18,15 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 Python 依赖（使用国内镜像加速）
+# 安装 Python 依赖（使用国内镜像加速并锁定版本）
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     fastapi \
     uvicorn \
-    docker
+    docker \
+    numpy==1.26.4 \
+    pandas==2.2.2 \
+    openpyxl==3.1.2 \
+    sympy==1.12
 
 # 复制您的 code_interpreter.py 文件到容器的 /app 目录
 COPY code_interpreter.py .

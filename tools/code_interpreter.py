@@ -44,22 +44,19 @@ class CodeInterpreterTool:
             logger.warning("Container will continue without Docker access")
             self.docker_client = None
 
-    async def pull_image(self, image_name):
-        """Pull the Docker image if not available locally"""
+    def check_image(self, image_name):
+        """Checks if the Docker image exists locally, raises error if not."""
         if not self.docker_client:
             raise RuntimeError("Docker client not available")
-            
         try:
             self.docker_client.images.get(image_name)
-            logger.info(f"Image {image_name} found locally")
+            logger.info(f"Image '{image_name}' found locally.")
         except ImageNotFound:
-            logger.info(f"Pulling image {image_name}...")
-            try:
-                self.docker_client.images.pull(image_name)
-                logger.info(f"Image {image_name} pulled successfully")
-            except DockerException as e:
-                logger.error(f"Failed to pull image {image_name}: {e}")
-                raise RuntimeError(f"Failed to pull Docker image: {e}") from e
+            logger.error(f"Image '{image_name}' not found.")
+            raise RuntimeError(
+                f"Docker image '{image_name}' not found. "
+                f"Please build it first, for example, by running 'docker-compose build --no-cache' in the 'tools' directory."
+            )
 
     async def execute(self, parameters: CodeInterpreterInput) -> dict:
         if not self.docker_client:
@@ -68,11 +65,12 @@ class CodeInterpreterTool:
                 "error": "Docker daemon not available. Please ensure Docker is running and accessible."
             }
             
-        image_name = "python:3.11-slim"
+        image_name = "tools-python-sandbox"
         
         # 确保镜像可用
         try:
-            await self.pull_image(image_name)
+            # We are not awaiting here because check_image is synchronous
+            self.check_image(image_name)
         except Exception as e:
             return {"success": False, "error": f"Image preparation failed: {e}"}
         
@@ -86,23 +84,25 @@ sys.stderr = buffer_stderr = io.StringIO()
 
 try:
     # 限制可用的内置函数
+    # A more comprehensive but still safe list of built-in functions
     safe_builtins = {{
+        # Core & Essential
+        '__import__': __import__,
         'print': print,
-        'len': len,
-        'range': range,
-        'str': str,
-        'int': int,
-        'float': float,
-        'bool': bool,
-        'list': list,
-        'dict': dict,
-        'set': set,
-        'tuple': tuple,
-        'max': max,
-        'min': min,
-        'sum': sum,
-        'abs': abs,
-        'round': round
+        'repr': repr,
+        # Data Types & Conversions
+        'bool': bool, 'int': int, 'float': float, 'str': str,
+        'list': list, 'dict': dict, 'set': set, 'tuple': tuple,
+        'type': type,
+        # Iteration & Data Structures
+        'len': len, 'range': range, 'sorted': sorted, 'reversed': reversed,
+        'zip': zip, 'enumerate': enumerate, 'slice': slice,
+        # Math
+        'abs': abs, 'max': max, 'min': min, 'sum': sum, 'round': round,
+        'pow': pow, 'divmod': divmod,
+        # Object Model & Introspection
+        'isinstance': isinstance, 'issubclass': issubclass,
+        'hasattr': hasattr, 'getattr': getattr, 'setattr': setattr,
     }}
     exec({repr(parameters.code)}, {{'__builtins__': safe_builtins}})
     stdout = buffer_stdout.getvalue()
@@ -125,7 +125,7 @@ print(stderr, file=sys.stderr, end='')
                 image=image_name,
                 command=["python", "-c", runner_script],
                 network_disabled=True,   # 无网络
-                mem_limit="256m",        # 内存上限
+                mem_limit="512m",        # 内存上限
                 cpu_period=100_000,
                 cpu_quota=50_000,        # 0.5 核
                 remove=True,             # 执行后自动删除

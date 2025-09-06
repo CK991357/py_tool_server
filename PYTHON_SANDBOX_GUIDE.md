@@ -12,107 +12,85 @@ The service's power comes from its multi-layered security model, which strictly 
 
 ### 2.1 Security Layers
 
--   **Docker Container Isolation**: Every piece of code runs in its own dedicated, single-use Docker container based on the `python:3.11-slim` image. The container is automatically destroyed after execution, ensuring no state persists between runs.
+-   **Docker Container Isolation**: Every piece of code runs in its own dedicated, single-use Docker container. This container is built from a custom image based on `python:3.11-slim` that includes the libraries listed below. The container is automatically destroyed after execution, ensuring no state persists between runs.
 -   **No Network Access**: The container is started with `network_disabled=True`. This provides a complete guarantee that the executed code cannot make any internal or external network calls.
 -   **Read-Only Filesystem**: The container's filesystem is mounted as read-only (`read_only=True`). The code cannot write or modify any files within the container.
--   **Strict Resource Limits**: To prevent denial-of-service attacks or resource abuse, each container is capped at **256MB of RAM** and **50% of a single CPU core**.
--   **Restricted Python Built-ins**: This is the innermost security layer. Before the user's code is executed, the Python runtime itself is modified to only allow a small, safe subset of built-in functions. Dangerous functions that could be used to bypass security (like `open`, `import`, `eval`) are removed.
+-   **Strict Resource Limits**: To prevent denial-of-service attacks or resource abuse, each container is capped at **512MB of RAM** and **50% of a single CPU core**.
+-   **Interpreter-Level Sandbox**: The Python `exec` function is called with a restricted list of safe built-in functions. This prevents access to dangerous functions (like `open`, `eval`) even within the container, providing a second layer of security.
 
-### 2.2 Available Libraries & Functions
+### 2.2 Available Libraries
+The sandbox comes pre-installed with a curated set of popular libraries for data science and symbolic mathematics.
 
-#### Permitted Built-in Functions
-The following is an exhaustive list of the Python `__builtins__` that are available to the code:
-`print`, `len`, `range`, `str`, `int`, `float`, `bool`, `list`, `dict`, `set`, `tuple`, `max`, `min`, `sum`, `abs`, `round`.
+-   **Numpy**: The fundamental package for scientific computing with Python. Used for high-performance multi-dimensional array objects and tools for working with these arrays.
+-   **Pandas**: A fast, powerful, and easy-to-use open-source data analysis and manipulation tool. Essential for working with structured data.
+-   **Openpyxl**: A Python library to read/write Excel 2010 xlsx/xlsm/xltx/xltm files in memory.
+-   **Sympy**: A Python library for symbolic mathematics. It aims to become a full-featured computer algebra system (CAS) while keeping the code as simple as possible in order to be comprehensible and easily extensible.
 
-Any attempt to use a built-in function not on this list will result in an error.
-
-#### Python Standard Library
-Most modules from the Python 3.11 Standard Library that do **not** perform networking or filesystem operations are available. Because the `import` statement is disabled in the main execution scope, these modules can only be used if they are imported *within* the provided code snippet itself.
-
-**Examples of usable standard libraries:**
-- `math` for advanced mathematical calculations.
-- `random` for generating random numbers.
-- `datetime` for time and date manipulation.
-- `re` for regular expression-based text processing.
-- `json` for working with JSON data structures.
-- `collections` for advanced data structures.
-
-#### Third-Party Libraries
-**None.** The base Docker image (`python:3.11-slim`) is minimal and does not include any third-party libraries like `numpy`, `pandas`, `requests`, etc.
+Python's extensive **Standard Library** is also available (e.g., `math`, `random`, `datetime`, `json`, `re`).
 
 ## 3. Usage Scenarios & Examples
 
-This service excels at tasks that are purely computational or algorithmic.
-
-### Scenario 1: Advanced Calculator
-Use the service to solve complex mathematical expressions or problems that go beyond basic arithmetic.
+### Scenario 1: Advanced Calculations with Numpy
+Use `numpy` for complex numerical operations.
 
 **Example Code:**
 ```python
-import math
+import numpy as np
 
-# Calculate the hypotenuse of a right triangle
-a = 15
-b = 20
-c = math.sqrt(a**2 + b**2)
-print(f"The hypotenuse is: {c}")
+# Create two matrices
+matrix_a = np.array([[1, 2], [3, 4]])
+matrix_b = np.array([[5, 6], [7, 8]])
 
-# Calculate factorial
-print(f"Factorial of 6 is: {math.factorial(6)}")
+# Perform matrix multiplication
+result = np.dot(matrix_a, matrix_b)
+
+print("Matrix A:\n", matrix_a)
+print("Matrix B:\n", matrix_b)
+print("Result of multiplication:\n", result)
+```
+**Expected JSON Output:**
+```json
+{
+  "stdout": "Matrix A:\n [[1 2]\n [3 4]]\nMatrix B:\n [[5 6]\n [7 8]]\nResult of multiplication:\n [[19 22]\n [43 50]]\n",
+  "stderr": "",
+  "exit_code": 0
+}
 ```
 
-### Scenario 2: Data Manipulation and Algorithmic Tasks
-Perform operations like sorting, filtering, or transforming data structures.
+### Scenario 2: Data Manipulation with Pandas
+Use `pandas` to create and manipulate a simple DataFrame.
 
 **Example Code:**
 ```python
-# Sort a list of dictionaries by a specific key
-data = [
-    {'name': 'Alice', 'age': 30},
-    {'name': 'Bob', 'age': 25},
-    {'name': 'Charlie', 'age': 35}
-]
-sorted_data = sorted(data, key=lambda x: x['age'])
-print(sorted_data)
+import pandas as pd
+
+# Create a sample dataset
+data = {
+    'Product': ['A', 'B', 'C', 'D'],
+    'Sales': [150, 200, 180, 220]
+}
+df = pd.DataFrame(data)
+
+# Calculate total sales
+total_sales = df['Sales'].sum()
+
+print("Sales Data:\n", df)
+print("\nTotal Sales:", total_sales)
 ```
-
-### Scenario 3: Text Processing
-Use regular expressions or string methods to parse and analyze text.
-
-**Example Code:**
-```python
-import re
-
-text = "The quick brown fox jumps over the lazy dog. The fox is happy."
-# Find all occurrences of the word "fox"
-matches = re.findall(r'fox', text)
-print(f"Found 'fox' {len(matches)} times.")
+**Expected JSON Output:**
+```json
+{
+  "stdout": "Sales Data:\n   Product  Sales\n0       A    150\n1       B    200\n2       C    180\n3       D    220\n\nTotal Sales: 750\n",
+  "stderr": "",
+  "exit_code": 0
+}
 ```
 
 ## 4. Limitations
 
 It is critical to understand what this service **cannot** do:
 -   **No Internet Access**: Cannot make API calls, download files, or access any network resources.
--   **No File I/O**: Cannot read from or write to any files.
--   **No Third-Party Libraries**: Cannot use popular libraries like `numpy`, `pandas`, `matplotlib`, `requests`, etc.
+-   **No File I/O**: Cannot read from or write to any files. The `openpyxl` library can only operate on data in memory, not from disk.
+-   **No Plotting**: Visualization libraries like `matplotlib` and `seaborn` are not installed to keep the service lightweight and focused on data processing and calculations.
 -   **Stateless**: Each execution is independent. Variables or state from one run cannot be used in another.
-
-## 5. Future Expansion & Potential
-
-The current service provides a powerful but minimal foundation. It can be extended in several ways to unlock new capabilities:
-
-1.  **Adding Third-Party Libraries**:
-    -   **How**: Create a new `Dockerfile` that inherits from `python:3.11-slim` and adds a `RUN pip install ...` command to include trusted, popular libraries like `numpy`, `pandas` (for data analysis), or `sympy` (for symbolic mathematics).
-    -   **Impact**: This would dramatically increase the service's utility for data science and mathematical tasks, turning it into a true "Code Interpreter".
-
-2.  **Enabling Plotting & Charting**:
-    -   **How**: Install a library like `matplotlib` into a custom Docker image. Configure it to use a non-interactive backend (e.g., `agg`). The code could then generate a plot, save it to an in-memory buffer (e.g., `io.BytesIO`), and the service could return the image as a base64-encoded string in the JSON output.
-    -   **Impact**: Allows the AI model to visualize data, creating charts and graphs based on calculations.
-
-3.  **Introducing Stateful Sessions**:
-    -   **How**: This is a more complex architectural change. It would involve modifying the service to manage persistent container sessions for each user. A request would include a `session_id`, and the service would route the code to the corresponding running container. A timeout mechanism would be needed to terminate inactive sessions.
-    -   **Impact**: Would allow for iterative work, where a model could define a variable in one call and use it in the next, mimicking a true Jupyter Notebook experience. This would require careful security consideration to prevent state-related vulnerabilities.
-
-4.  **Controlled File System Access**:
-    -   **How**: For each execution, create and mount a temporary, isolated directory (`tmpfs`) into the container. The code would be allowed to read and write files *only* within this temporary workspace. The service could then be extended to optionally return specified output files (e.g., a generated CSV) as part of the response.
-    -   **Impact**: Enables more complex data processing tasks where intermediate files are needed, or where the final output is a file rather than just text.
+-   **Memory Constraints**: While the memory limit is 512MB, it is still possible to exhaust this with very large datasets. Libraries like `scikit-learn` or `scipy` have been intentionally excluded as they can be memory-intensive.
