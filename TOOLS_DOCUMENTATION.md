@@ -13,26 +13,48 @@
     - **语言**: Python 3.10+
     - **框架**: FastAPI
     - **核心依赖**: `fastapi`, `uvicorn`, `tavily-python`, `python-dotenv` (完整列表请参见 `requirements.txt`)
-    - **部署方式**: 通过 Gunicorn 和 Systemd 作为后台服务持久化运行。
-
-## 3. 安装与运行
-
-1.  **代码获取**: 将 `py_tool_server` 文件夹上传到服务器（例如 `/home/ren/py_tool_server`）。
-2.  **进入目录**: `cd /home/ren/py_tool_server`
-3.  **创建并激活虚拟环境**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-4.  **安装依赖**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-5.  **本地测试运行**:
-    ```bash
-    uvicorn main:app --host 0.0.0.0 --port 8827
-    ```
-6.  **生产环境部署**: 详细的 Systemd 和 Cloudflare Tunnel 配置请参考 `server_configuration.md` 中的“阶段四”。
+    - **部署方式**:
+        - `tavily_search`: 通过 Gunicorn 和 Systemd 作为后台服务在主机上持久化运行。
+        - `python_sandbox`: 作为一个独立的、容器化的服务通过 **Docker Compose** 运行。
+    
+    ## 3. 部署与运行
+    
+    ### 3.1 `tavily_search` (主机部署)
+    
+    1.  **代码获取**: 将 `py_tool_server` 文件夹上传到服务器（例如 `/home/ren/py_tool_server`）。
+    2.  **进入目录**: `cd /home/ren/py_tool_server`
+    3.  **创建并激活虚拟环境**:
+        ```bash
+        python3 -m venv venv
+        source venv/bin/activate
+        ```
+    4.  **安装依赖**: `pip install -r requirements.txt`
+    5.  **生产环境部署**: 详细的 Systemd 和 Cloudflare Tunnel 配置请参考 `server_configuration.md` 中的“阶段四”。
+    
+    ### 3.2 `python_sandbox` (Docker 部署)
+    
+    `python_sandbox` 服务被设计为在 Docker 容器中运行，以实现最高级别的安全和隔离。
+    
+    1.  **代码获取**: 将包含 `code_interpreter.py`, `Dockerfile`, 和 `docker-compose.yml` 的 `tools` 文件夹上传到服务器。
+    2.  **进入目录**: `cd /path/to/your/tools`
+    3.  **构建并启动服务**:
+        ```bash
+        docker-compose up --build -d
+        ```
+        - `--build`: 强制重新构建 Docker 镜像，以确保应用最新的代码和依赖变更。
+        - `-d`: 在后台（detached mode）运行服务。
+    4.  **确认运行状态**:
+        ```bash
+        docker-compose ps
+        ```
+    5.  **查看日志**:
+        ```bash
+        docker-compose logs -f
+        ```
+    
+    **重要前提**:
+    - 主机上必须已安装 Docker 和 Docker Compose。
+    - 运行 Docker 的用户必须有权限访问 Docker守护进程。`docker-compose.yml` 中已通过挂载 Docker socket (`/var/run/docker.sock`) 来实现此功能。
 
 ## 4. API 使用方式
 
@@ -153,7 +175,10 @@
 
 ### 5.2 `python_sandbox`
 
-- **描述**: 在一个高度安全、隔离的沙箱环境中执行 Python 代码片段，并返回其标准输出和标准错误。此工具无法访问网络或主机文件系统，确保了代码执行的安全性。
+- **描述**: 在一个高度安全、多层隔离的 Docker 沙箱环境中执行 Python 代码片段。此工具是为最大化安全而设计的，能够防御不安全的模型生成代码。
+
+- **API 端点**: `POST /api/v1/python_sandbox`
+  *(注意: 这是一个独立的专用端点，与通用的 `/execute_tool` 不同)*
 
 - **输入参数 (`parameters`)**:
 
@@ -162,30 +187,36 @@
 | `code`   | string | **是**   | N/A    | 要在沙箱中执行的 Python 代码。 |
 
 
-- **输出 (`data` 字段内容)**:
-  成功时，`data` 字段是一个包含以下两个键的 JSON 对象：
+- **输出**:
+  成功执行时（HTTP 200），响应体是一个包含以下三个键的 JSON 对象：
     - `stdout` (string): 代码执行后的标准输出内容。
-    - `stderr` (string): 代码执行期间产生的任何错误信息。如果代码成功运行，此字段将为空字符串。
+    - `stderr` (string): 代码执行期间产生的标准错误内容。
+    - `exit_code` (integer): 容器内代码的退出码。`0` 表示成功，非 `0` 表示代码本身存在错误。
+
+- **安全特性**:
+    - **Docker 容器隔离**: 每次执行都在一个全新的、一次性的 Docker 容器 (`python:3.11-slim`) 中进行。
+    - **无网络访问**: 容器的 `network_disabled=True`，彻底杜绝任何网络请求。
+    - **只读文件系统**: 容器的文件系统是只读的 (`read_only=True`)，防止任何文件写入尝试。
+    - **资源限制**: 内存上限为 **256MB**，CPU 使用率上限为 **0.5 核**，防止资源滥用。
+    - **Python 内置函数限制**: 在执行代码前，通过自定义的 `runner_script` 移除了所有危险的 Python 内置函数（如 `open`, `import`, `eval` 等），只保留一个安全的子集。
 
 - **使用示例 (`curl`)**:
   ```bash
-  curl -X POST 'https://tools.10110531.xyz/api/v1/python_sandbox' \
+  curl -X POST 'https://pythonsandbox.10110531.xyz/api/v1/python_sandbox' \
   --header 'Content-Type: application/json' \
   --data '{
-      "tool_name": "python_sandbox",
       "parameters": {
-          "code": "import sys\nprint('Hello from the sandbox!')\nprint('Error message', file=sys.stderr)"
+          "code": "import sys; print(\"Hello from sandbox\"); print(\"Error log\", file=sys.stderr)"
       }
   }'
   ```
+  *(注意: 请求体中不包含 `tool_name`)*
 
 - **示例成功响应**:
   ```json
   {
-      "success": true,
-      "data": {
-          "stdout": "Hello from the sandbox!\n",
-          "stderr": "Error message\n"
-      }
+      "stdout": "Hello from sandbox\n",
+      "stderr": "Error log\n",
+      "exit_code": 0
   }
   ```
