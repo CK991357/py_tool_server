@@ -76,11 +76,28 @@ class CodeInterpreterTool:
         
         # 创建安全的执行环境
         runner_script = f"""
-import sys, traceback, io
+import sys, traceback, io, json, base64
+
+# --- Capture matplotlib title ---
+title_holder = [None] # Use a list to hold the title
+try:
+    import matplotlib.pyplot as plt
+    original_title_func = plt.title
+    def new_title_func(label, *args, **kwargs):
+        title_holder[0] = label
+        return original_title_func(label, *args, **kwargs)
+    plt.title = new_title_func
+except ImportError:
+    pass # Matplotlib not available or used
+
+# --- Redirect stdout/stderr ---
 old_stdout = sys.stdout
 old_stderr = sys.stderr
 sys.stdout = buffer_stdout = io.StringIO()
 sys.stderr = buffer_stderr = io.StringIO()
+
+stdout_val = ""
+stderr_val = ""
 
 try:
     # 限制可用的内置函数
@@ -104,19 +121,44 @@ try:
         'isinstance': isinstance, 'issubclass': issubclass,
         'hasattr': hasattr, 'getattr': getattr, 'setattr': setattr,
     }}
-    exec({repr(parameters.code)}, {{'__builtins__': safe_builtins}})
-    stdout = buffer_stdout.getvalue()
-    stderr = buffer_stderr.getvalue()
+    # Pass matplotlib into the exec context if it was imported
+    exec_globals = {{'__builtins__': safe_builtins}}
+    if 'plt' in locals():
+        exec_globals['plt'] = plt
+        
+    exec({repr(parameters.code)}, exec_globals)
+    stdout_val = buffer_stdout.getvalue()
+    stderr_val = buffer_stderr.getvalue()
 except Exception as e:
-    stdout = buffer_stdout.getvalue()
-    stderr = buffer_stderr.getvalue() + '\\n' + traceback.format_exc()
+    stdout_val = buffer_stdout.getvalue()
+    stderr_val = buffer_stderr.getvalue() + '\\n' + traceback.format_exc()
 finally:
     sys.stdout = old_stdout
     sys.stderr = old_stderr
 
-# 输出结果
-print(stdout, end='')
-print(stderr, file=sys.stderr, end='')
+# --- Format output ---
+is_image = False
+stripped_stdout = stdout_val.strip()
+if stripped_stdout.startswith(('iVBORw0KGgo', '/9j/')):
+    try:
+        base64.b64decode(stripped_stdout, validate=True)
+        is_image = True
+    except Exception:
+        is_image = False
+
+if is_image:
+    captured_title = title_holder[0] if title_holder[0] else "Generated Chart"
+    output_data = {{
+        "type": "image",
+        "title": captured_title,
+        "image_base64": stripped_stdout
+    }}
+    print(json.dumps(output_data), end='')
+else:
+    # For non-image output, just print the raw output
+    print(stdout_val, end='')
+
+print(stderr_val, file=sys.stderr, end='')
 """
 
         try:

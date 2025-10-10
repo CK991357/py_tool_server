@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from .tavily_search import TavilySearchTool
 from .code_interpreter import CodeInterpreterTool as PythonSandboxTool
 from .firecrawl_tool import FirecrawlTool
+from .stockfish_tool import StockfishTool
 
 # --- Tool Registry ---
 # This dictionary maps tool names to their corresponding implementation classes.
@@ -13,6 +14,7 @@ TOOL_REGISTRY = {
     TavilySearchTool.name: TavilySearchTool,
     PythonSandboxTool.name: PythonSandboxTool,
     FirecrawlTool.name: FirecrawlTool,
+    StockfishTool.name: StockfishTool,
     # Future tools can be registered here, e.g.:
     # "read_file": ReadFileTool,
 }

@@ -245,11 +245,10 @@ curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: 
 
 #### 3.2.1 `python_sandbox` 测试
 
-**测试命令 (Windows CMD):**
+**1. 文本输出测试 (Windows CMD):**
 ```bash
 curl -X POST "https://pythonsandbox.10110531.xyz/api/v1/python_sandbox" -H "Content-Type: application/json" -d "{\"parameters\": {\"code\": \"import platform; print(f'Hello from a {platform.processor()} container!')\"}}"
 ```
-
 **预期成功响应示例:**
 ```json
 {
@@ -258,7 +257,24 @@ curl -X POST "https://pythonsandbox.10110531.xyz/api/v1/python_sandbox" -H "Cont
     "exit_code": 0
 }
 ```
-此响应表明服务已成功接收请求，调用 Tavily Search API，并返回了相关的搜索结果。
+
+**2. 数据可视化测试 (Windows CMD):**
+```bash
+curl -X POST https://pythonsandbox.10110531.xyz/api/v1/python_sandbox ^
+  -H "Content-Type: application/json" ^
+  -d "{ \"parameters\": { \"code\": \"import matplotlib;matplotlib.use('Agg');import matplotlib.pyplot as plt,io,base64;plt.plot([0,1,2],[0,1,0]);buf=io.BytesIO();plt.savefig(buf,format='png',bbox_inches='tight');buf.seek(0);print(base64.b64encode(buf.read()).decode());buf.close();plt.close('all')\" } }"
+```
+**预期成功响应示例 (stdout 包含 Base64 图像):**
+```json
+{
+    "stdout": "iVBORw0KGgoAAAA... (Base64 encoded PNG image data)",
+    "stderr": "",
+    "exit_code": 0
+}
+```
+*(注: `stdout` 中 Base64 字符串的实际内容会非常长，这里仅为示意)*
+
+此响应表明服务已成功接收请求，执行 Python 代码，并根据代码逻辑返回文本或 Base64 编码的图像数据。
 
 ---
 

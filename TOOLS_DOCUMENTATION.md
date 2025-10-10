@@ -187,14 +187,30 @@
 
 ### 5.3 `python_sandbox`
 
-- **描述**: 在一个高度安全、隔离的 Docker 沙箱环境中执行 Python 代码。
+- **描述**: 在一个高度安全、隔离的 Docker 沙箱环境中执行 Python 代码，支持数据分析、可视化和生成 Base64 编码的 PNG 图像。
 - **API 端点**: `https://pythonsandbox.10110531.xyz/api/v1/python_sandbox` *(注意: 专用端点)*
 - **输入参数 (`parameters`)**:
 
-| 参数名 | 类型   | 是否必需 | 描述                     |
-|----------|--------|----------|--------------------------|
-| `code`   | string | **是**   | 要在沙箱中执行的 Python 代码。 |
+| 参数名 | 类型   | 是否必需 | 描述                                |
+|----------|--------|----------|-------------------------------------|
+| `code`   | string | **是**   | 要在沙箱中执行的 Python 代码，可包含 `matplotlib` 和 `seaborn` 绘图代码。 |
 
-- **使用示例 (`curl` for Windows CMD)**:
+- **成功响应示例 (`stdout` 包含 Base64 图像)**:
+  ```json
+  {
+      "stdout": "iVBORw0KGgoAAAA... (Base64 encoded PNG image data)",
+      "stderr": "",
+      "exit_code": 0
+  }
+  ```
+  *(注: `stdout` 中 Base64 字符串的实际内容会非常长)*
+
+- **使用示例 (`curl` for Windows CMD) - 数据可视化**:
+  ```bash
+  curl -X POST "https://pythonsandbox.10110531.xyz/api/v1/python_sandbox" -H "Content-Type: application/json" -d "{ \"parameters\": { \"code\": \"import matplotlib\\nmatplotlib.use('Agg')\\nimport matplotlib.pyplot as plt\\nimport io\\nimport base64\\nplt.plot([0,1,2],[0,1,0]);buf=io.BytesIO();plt.savefig(buf,format='png',bbox_inches='tight');buf.seek(0);print(base64.b64encode(buf.read()).decode());buf.close();plt.close('all')\" } }"
+  ```
+
+- **使用示例 (`curl` for Windows CMD) - 文本输出**:
   ```bash
   curl -X POST "https://pythonsandbox.10110531.xyz/api/v1/python_sandbox" -H "Content-Type: application/json" -d "{\"parameters\": {\"code\": \"print('Hello from sandbox')\"}}"
+  ```

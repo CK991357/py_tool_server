@@ -58,6 +58,29 @@ TOOLS_CATALOG = [
       },
       "required": ["mode", "parameters"]
     }
+  },
+  {
+    "name": "stockfish_analyzer",
+    "description": "A powerful chess analysis tool using the Stockfish engine. Use different modes to get the best move, top several moves, or a positional evaluation.",
+    "endpoint_url": "https://tools.10110531.xyz/api/v1/execute_tool",
+    "input_schema": {
+      "title": "StockfishInput",
+      "type": "object",
+      "properties": {
+        "mode": { "title": "Mode", "type": "string", "enum": ["get_best_move", "get_top_moves", "evaluate_position"], "description": "The analysis mode to execute." },
+        "fen": { "title": "FEN", "type": "string", "description": "The FEN string of the current board position." },
+        "options": {
+          "title": "Options",
+          "type": "object",
+          "properties": {
+            "skill_level": { "title": "Skill Level", "type": "integer", "default": 20, "minimum": 0, "maximum": 20 },
+            "depth": { "title": "Depth", "type": "integer", "default": 15, "minimum": 1, "maximum": 30 },
+            "count": { "title": "Count", "type": "integer", "default": 3, "minimum": 1, "maximum": 10 }
+          }
+        }
+      },
+      "required": ["mode", "fen"]
+    }
   }
 ]
 
