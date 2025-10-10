@@ -125,11 +125,13 @@ print(stderr, file=sys.stderr, end='')
                 image=image_name,
                 command=["python", "-c", runner_script],
                 network_disabled=True,   # 无网络
-                mem_limit="512m",        # 内存上限
+                environment={'MPLCONFIGDIR': '/tmp'}, # ADDED
+                mem_limit="1g",          # 内存上限
                 cpu_period=100_000,
                 cpu_quota=50_000,        # 0.5 核
                 remove=True,             # 执行后自动删除
                 read_only=True,          # 只读文件系统
+                tmpfs={'/tmp': 'size=100M,mode=1777'},  # ADDED
                 stdout=True,
                 stderr=True,
                 detach=False             # 同步执行，等待结果返回

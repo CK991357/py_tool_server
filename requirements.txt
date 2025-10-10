@@ -3,3 +3,4 @@ uvicorn[standard]
 tavily-python
 python-dotenv
 docker
+firecrawl-py

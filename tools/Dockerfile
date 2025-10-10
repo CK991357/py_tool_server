@@ -26,7 +26,9 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     numpy==1.26.4 \
     pandas==2.2.2 \
     openpyxl==3.1.2 \
-    sympy==1.12
+    sympy==1.12 \
+    matplotlib==3.8.4 \
+    seaborn==0.13.2
 
 # 复制您的 code_interpreter.py 文件到容器的 /app 目录
 COPY code_interpreter.py .
