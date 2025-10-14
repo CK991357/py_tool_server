@@ -6,7 +6,6 @@ from docker.errors import DockerException, ContainerError, ImageNotFound, NotFou
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 import json
-import base64
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -77,9 +76,7 @@ class CodeInterpreterTool:
         
         # 创建安全的执行环境
         runner_script = f"""
-import sys, traceback, io, json, base64, os
-from io import BytesIO
-import glob
+import sys, traceback, io, json, base64
 
 # --- Capture matplotlib title ---
 title_holder = [None] # Use a list to hold the title
@@ -101,7 +98,6 @@ sys.stderr = buffer_stderr = io.StringIO()
 
 stdout_val = ""
 stderr_val = ""
-file_output = None
 
 try:
     # 限制可用的内置函数
@@ -139,104 +135,30 @@ except Exception as e:
 finally:
     sys.stdout = old_stdout
     sys.stderr = old_stderr
-    
-    # --- 扫描/tmp目录查找生成的文件 ---
-    try:
-        # 查找常见的办公文档和PDF文件
-        file_patterns = [
-            '/tmp/*.docx',
-            '/tmp/*.xlsx', 
-            '/tmp/*.pptx',
-            '/tmp/*.pdf',
-            '/tmp/*.png',
-            '/tmp/*.jpg',
-            '/tmp/*.jpeg'
-        ]
-        
-        found_files = []
-        for pattern in file_patterns:
-            found_files.extend(glob.glob(pattern))
-        
-        # 如果找到文件，读取第一个文件并编码为Base64
-        if found_files:
-            file_path = found_files[0]  # 取第一个找到的文件
-            filename = os.path.basename(file_path)
-            
-            # 确定文件类型和MIME类型
-            file_ext = filename.split('.')[-1].lower()
-            mime_types = {{
-                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                'pdf': 'application/pdf',
-                'png': 'image/png',
-                'jpg': 'image/jpeg',
-                'jpeg': 'image/jpeg'
-            }}
-            
-            file_type_map = {{
-                'docx': 'word',
-                'xlsx': 'excel', 
-                'pptx': 'ppt',
-                'pdf': 'pdf',
-                'png': 'image',
-                'jpg': 'image',
-                'jpeg': 'image'
-            }}
-            
-            mime_type = mime_types.get(file_ext, 'application/octet-stream')
-            file_type = file_type_map.get(file_ext, 'binary')
-            
-            # 读取文件并编码为Base64
-            with open(file_path, 'rb') as f:
-                file_content = f.read()
-                file_base64 = base64.b64encode(file_content).decode('utf-8')
-            
-            file_output = {{
-                "type": file_type,
-                "filename": filename,
-                "mime_type": mime_type,
-                "data_base64": file_base64
-            }}
-            
-            # 如果是图片，添加标题信息
-            if file_type == 'image':
-                file_output["title"] = title_holder[0] if title_holder[0] else "Generated Image"
-    except Exception as e:
-        # 文件扫描或读取失败，不影响主流程
-        pass
 
 # --- Format output ---
-if file_output:
-    # 如果有文件输出，优先返回文件
-    print(json.dumps(file_output))
-else:
-    # 检查是否是直接输出的图片base64
-    stripped_stdout = stdout_val.strip()
-    is_image = False
-    if stripped_stdout.startswith(('iVBORw0KGgo', '/9j/')):
-        try:
-            base64.b64decode(stripped_stdout, validate=True)
-            is_image = True
-        except Exception:
-            is_image = False
+is_image = False
+stripped_stdout = stdout_val.strip()
+if stripped_stdout.startswith(('iVBORw0KGgo', '/9j/')):
+    try:
+        base64.b64decode(stripped_stdout, validate=True)
+        is_image = True
+    except Exception:
+        is_image = False
 
-    if is_image:
-        captured_title = title_holder[0] if title_holder[0] else "Generated Chart"
-        output_data = {{
-            "type": "image",
-            "title": captured_title,
-            "image_base64": stripped_stdout
-        }}
-        print(json.dumps(output_data))
-    else:
-        # 对于非文件输出，返回文本
-        output_data = {{
-            "type": "text",
-            "stdout": stdout_val,
-            "stderr": stderr_val
-        }}
-        print(json.dumps(output_data))
+if is_image:
+    captured_title = title_holder[0] if title_holder[0] else "Generated Chart"
+    output_data = {{
+        "type": "image",
+        "title": captured_title,
+        "image_base64": stripped_stdout
+    }}
+    print(json.dumps(output_data), end='')
+else:
+    # For non-image output, just print the raw output
+    print(stdout_val, end='')
+
+print(stderr_val, file=sys.stderr, end='')
 """
 
         try:
@@ -245,13 +167,13 @@ else:
                 image=image_name,
                 command=["python", "-c", runner_script],
                 network_disabled=True,   # 无网络
-                environment={'MPLCONFIGDIR': '/tmp'},
+                environment={'MPLCONFIGDIR': '/tmp'}, # ADDED
                 mem_limit="1g",          # 内存上限
                 cpu_period=100_000,
                 cpu_quota=50_000,        # 0.5 核
                 remove=True,             # 执行后自动删除
                 read_only=True,          # 只读文件系统
-                tmpfs={'/tmp': 'size=100M,mode=1777'},  # 可写的tmpfs用于保存文件
+                tmpfs={'/tmp': 'size=100M,mode=1777'},  # ADDED
                 stdout=True,
                 stderr=True,
                 detach=False             # 同步执行，等待结果返回
@@ -260,53 +182,28 @@ else:
             # 解码输出
             stdout = output.decode('utf-8', errors='ignore')
             
-            # 尝试解析JSON输出
-            try:
-                parsed_output = json.loads(stdout)
-                return {
-                    "success": True,
-                    "data": {
-                        "stdout": parsed_output,
-                        "stderr": "",  # 在此模式下，stderr通常合并到stdout
-                        "exit_code": 0
-                    }
+            return {
+                "success": True,
+                "data": {
+                    "stdout": stdout,
+                    "stderr": "",  # 在此模式下，stderr通常合并到stdout
+                    "exit_code": 0 # 如果执行到这里，说明没有抛出异常，exit_code为0
                 }
-            except json.JSONDecodeError:
-                # 如果不是JSON，则作为纯文本返回
-                return {
-                    "success": True,
-                    "data": {
-                        "stdout": stdout,
-                        "stderr": "",
-                        "exit_code": 0
-                    }
-                }
+            }
             
         except ContainerError as e:
             # 容器内代码执行出错 (非零退出码)
             stdout = e.stdout.decode('utf-8', errors='ignore') if e.stdout else ""
             stderr = e.stderr.decode('utf-8', errors='ignore') if e.stderr else ""
-            
-            # 尝试解析可能的JSON输出
-            try:
-                parsed_stdout = json.loads(stdout) if stdout else stdout
-                return {
-                    "success": True, # 成功执行了代码，但代码本身有错误
-                    "data": {
-                        "stdout": parsed_stdout,
-                        "stderr": stderr,
-                        "exit_code": e.exit_status
-                    }
+                
+            return {
+                "success": True, # 成功执行了代码，但代码本身有错误
+                "data": {
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "exit_code": e.exit_status
                 }
-            except json.JSONDecodeError:
-                return {
-                    "success": True,
-                    "data": {
-                        "stdout": stdout,
-                        "stderr": stderr,
-                        "exit_code": e.exit_status
-                    }
-                }
+            }
         except Exception as e:
             logger.error(f"Sandbox error: {e}")
             return {"success": False, "error": f"Sandbox error: {e}"}
