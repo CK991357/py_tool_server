@@ -14,7 +14,11 @@ RUN apt-get update && \
     ca-certificates \
     curl \
     gnupg \
-    lsb-release && \
+    lsb-release \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    fontconfig && \
+    fc-cache -fv && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +33,10 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     openpyxl==3.1.2 \
     sympy==1.12 \
     matplotlib==3.8.4 \
-    seaborn==0.13.2
+    seaborn==0.13.2 \
+    python-docx==1.1.2 \
+    reportlab==4.0.7 \
+    python-pptx==0.6.23
 
 # 复制您的 code_interpreter.py 文件到容器的 /app 目录
 COPY code_interpreter.py .
