@@ -81,7 +81,7 @@
 **示例 404 响应 (已更新):**
 ```json
 {
-    "detail": "Tool 'non_existent_tool' not found. Available tools on this endpoint are: ['tavily_search', 'firecrawl']"
+    "detail": "Tool 'non_existent_tool' not found. Available tools on this endpoint are: ['tavily_search', 'firecrawl', 'stockfish_analyzer']"
 }
 ```
 
@@ -213,4 +213,34 @@
 - **使用示例 (`curl` for Windows CMD) - 文本输出**:
   ```bash
   curl -X POST "https://pythonsandbox.10110531.xyz/api/v1/python_sandbox" -H "Content-Type: application/json" -d "{\"parameters\": {\"code\": \"print('Hello from sandbox')\"}}"
+  ```
+---
+
+### 5.4 `stockfish_analyzer`
+
+- **描述**: 一个强大的国际象棋分析工具，使用 Stockfish 引擎。通过不同的模式获取最佳走法、前几步走法或进行局面评估。
+- **输入参数 (`parameters`)**:
+
+| 参数名 | 类型 | 是否必需 | 描述 |
+|---|---|---|---|
+| `mode` | string | **是** | 分析模式。可选值: `'get_best_move'`, `'get_top_moves'`, `'evaluate_position'`。 |
+| `fen` | string | **是** | 当前棋盘局面的 FEN 字符串。 |
+| `options` | object | 否 | 可选的分析参数，详见下表。 |
+
+#### `stockfish_analyzer` - `options` 字典内容
+
+| 参数名 | 类型 | 是否必需 | 默认值 | 描述 |
+|---|---|---|---|---|
+| `skill_level` | integer | 否 | 20 | Stockfish 的技能等级 (0-20)。 |
+| `depth` | integer | 否 | 15 | 分析深度 (1-30)。值越高，分析越强但越慢。 |
+| `count` | integer | 否 | 3 | 仅在 `mode` 为 `'get_top_moves'` 时有效。返回的最佳走法数量 (1-10)。 |
+
+- **使用示例 (`curl` for Windows CMD) - 获取最佳走法**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"stockfish_analyzer\", \"parameters\": {\"mode\": \"get_best_move\", \"fen\": \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"}}"
+  ```
+
+- **使用示例 (`curl` for Windows CMD) - 获取前 5 步走法**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"stockfish_analyzer\", \"parameters\": {\"mode\": \"get_top_moves\", \"fen\": \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\", \"options\": {\"count\": 5}}}"
   ```

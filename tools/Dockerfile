@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     uvicorn \
     docker \
     numpy==1.26.4 \
+    scipy==1.14.1 \
     pandas==2.2.2 \
     openpyxl==3.1.2 \
     sympy==1.12 \
