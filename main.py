@@ -2,12 +2,17 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from dotenv import load_dotenv
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 在所有其他导入之前加载.env文件中的环境变量
 load_dotenv()
 
 # 导入我们真实的工具执行器
-from tools.tool_registry import execute_tool
+from tools.tool_registry import execute_tool, tool_instances, initialize_tools, cleanup_tools
 
 app = FastAPI(
     title="Python Tool Server & Documentation Gateway",
@@ -15,9 +20,21 @@ app = FastAPI(
     version="2.0.0",
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """在应用启动时初始化需要预热的工具"""
+    logger.info("Initializing tool instances...")
+    await initialize_tools()
+    logger.info("All tool instances initialized successfully.")
+
+@app.on_event("shutdown") 
+async def shutdown_event():
+    """在应用关闭时清理工具资源"""
+    logger.info("Cleaning up tool instances...")
+    await cleanup_tools()
+    logger.info("All tool instances cleaned up successfully.")
+
 # --- 工具文档目录 ---
-# 这个目录描述了所有可用的工具，包括由本服务执行的和由外部服务执行的。
-# Agent可以查询 /api/v1/docs 端点来动态发现这些工具。
 TOOLS_CATALOG = [
   {
     "name": "tavily_search",
@@ -81,6 +98,29 @@ TOOLS_CATALOG = [
       },
       "required": ["mode", "fen"]
     }
+  },
+  {
+    "name": "crawl4ai",
+    "description": "A powerful open-source tool to scrape, crawl, extract structured data, export PDFs, and capture screenshots from web pages. Supports deep crawling with multiple strategies (BFS, DFS, BestFirst), batch URL processing, AI-powered extraction, and advanced content filtering. All outputs are returned as memory streams (base64 for binary data).",
+    "endpoint_url": "https://tools.10110531.xyz/api/v1/execute_tool",
+    "input_schema": {
+      "title": "Crawl4AIInput",
+      "type": "object",
+      "properties": {
+        "mode": { 
+          "title": "Mode", 
+          "type": "string", 
+          "enum": ["scrape", "crawl", "deep_crawl", "extract", "batch_crawl", "pdf_export", "screenshot"], 
+          "description": "The function to execute." 
+        },
+        "parameters": { 
+          "title": "Parameters", 
+          "type": "object", 
+          "description": "A dictionary of parameters for the selected mode." 
+        }
+      },
+      "required": ["mode", "parameters"]
+    }
   }
 ]
 
@@ -118,7 +158,7 @@ async def api_execute_tool(request: ToolExecutionRequest):
         # 如果工具执行本身失败，也可能需要一个特定的HTTP状态码
         if isinstance(result, dict) and result.get("success") == False:
             # 检查是否有验证错误
-            if "validation_details" in result:
+            if "details" in result:
                  raise HTTPException(status_code=400, detail=result) # Bad Request for validation errors
             # 其他工具执行错误
             raise HTTPException(status_code=500, detail=result)
@@ -129,6 +169,7 @@ async def api_execute_tool(request: ToolExecutionRequest):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         # 处理其他所有执行期间的错误
+        logger.error(f"Unexpected error in tool execution: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 # To run this server, you would use a command like:

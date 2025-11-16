@@ -185,7 +185,132 @@
 
 ---
 
-### 5.3 `python_sandbox`
+### 5.3 `crawl4ai`
+
+- **描述**: 一个强大的开源工具，用于抓取网页、深度爬取网站、提取结构化数据、导出PDF和捕获截图。支持多种深度爬取策略（BFS、DFS、BestFirst）、批量URL处理、AI驱动的数据提取和高级内容过滤。所有输出都作为内存流返回（二进制数据为base64格式）。
+- **输入参数 (`parameters`)**:
+
+| 参数名       | 类型   | 是否必需 | 描述                                                                 |
+|--------------|--------|----------|----------------------------------------------------------------------|
+| `mode`       | string | **是**   | 功能模式。可选值: `'scrape'`, `'deep_crawl'`, `'extract'`, `'batch_crawl'`, `'pdf_export'`, `'screenshot'` |
+| `parameters` | object | **是**   | 一个包含所选 `mode` 所需参数的字典。                                 |
+
+#### `crawl4ai` - `scrape` 模式
+
+- **描述**: 抓取单个URL的内容，支持多种输出格式和可选截图/PDF导出。
+- **`parameters` 字典内容**:
+
+| 参数名                   | 类型    | 是否必需 | 默认值    | 描述                                      |
+|--------------------------|---------|----------|-----------|-------------------------------------------|
+| `url`                    | string  | **是**   | N/A       | 要抓取的页面URL。                         |
+| `format`                 | string  | 否       | "markdown"| 输出格式: `'markdown'`, `'html'`, `'text'` |
+| `css_selector`           | string  | 否       | None      | 用于提取特定内容的CSS选择器。             |
+| `include_links`          | boolean | 否       | true      | 是否在输出中包含链接。                    |
+| `include_images`         | boolean | 否       | true      | 是否在输出中包含图片。                    |
+| `return_screenshot`      | boolean | 否       | false     | 是否返回base64格式的截图。                |
+| `return_pdf`             | boolean | 否       | false     | 是否返回base64格式的PDF。                 |
+| `screenshot_quality`     | integer | 否       | 70        | 截图JPEG质量 (10-100)。                  |
+| `screenshot_max_width`   | integer | 否       | 1920      | 截图最大宽度。                            |
+| `word_count_threshold`   | integer | 否       | 10        | 内容块的最小词数阈值。                    |
+| `exclude_external_links` | boolean | 否       | true      | 从内容中移除外部链接。                    |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"scrape\", \"parameters\": {\"url\": \"https://example.com\", \"format\": \"markdown\", \"return_screenshot\": true, \"screenshot_quality\": 80}}}"
+  ```
+
+#### `crawl4ai` - `deep_crawl` 模式
+
+- **描述**: 深度爬取整个网站，支持多种爬取策略和关键词相关性评分。
+- **`parameters` 字典内容**:
+
+| 参数名             | 类型          | 是否必需 | 默认值    | 描述                                      |
+|--------------------|---------------|----------|-----------|-------------------------------------------|
+| `url`              | string        | **是**   | N/A       | 开始深度爬取的URL。                       |
+| `max_depth`        | integer       | 否       | 2         | 最大爬取深度。                            |
+| `max_pages`        | integer       | 否       | 50        | 最大爬取页面数量。                        |
+| `strategy`         | string        | 否       | "bfs"     | 爬取策略: `'bfs'`, `'dfs'`, `'best_first'` |
+| `include_external` | boolean       | 否       | false     | 是否跟随外部链接。                        |
+| `keywords`         | list[string]  | 否       | None      | 用于相关性评分的关键词。                  |
+| `url_patterns`     | list[string]  | 否       | None      | 要包含的URL模式。                         |
+| `stream`           | boolean       | 否       | false     | 是否逐步流式返回结果。                    |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"deep_crawl\", \"parameters\": {\"url\": \"https://example.com\", \"max_depth\": 3, \"strategy\": \"bfs\", \"keywords\": [\"product\", \"price\"]}}}"
+  ```
+
+#### `crawl4ai` - `extract` 模式
+
+- **描述**: 从网页提取结构化数据，支持CSS选择器和LLM两种提取策略。
+- **`parameters` 字典内容**:
+
+| 参数名              | 类型          | 是否必需 | 默认值  | 描述                                      |
+|---------------------|---------------|----------|---------|-------------------------------------------|
+| `url`               | string        | **是**   | N/A     | 要提取数据的URL。                         |
+| `schema_definition` | object        | **是**   | N/A     | 用于数据提取的JSON schema定义。           |
+| `css_selector`      | string        | 否       | None    | 提取的基础CSS选择器。                     |
+| `extraction_type`   | string        | 否       | "css"   | 提取策略类型: `'css'`, `'llm'`。          |
+| `prompt`            | string        | 否       | None    | LLM提取的提示语。                         |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"extract\", \"parameters\": {\"url\": \"https://example.com\", \"schema_definition\": {\"title\": \"string\", \"description\": \"string\"}, \"extraction_type\": \"css\"}}}"
+  ```
+
+#### `crawl4ai` - `batch_crawl` 模式
+
+- **描述**: 批量爬取多个URL，支持并发处理。
+- **`parameters` 字典内容**:
+
+| 参数名            | 类型          | 是否必需 | 默认值  | 描述                          |
+|-------------------|---------------|----------|---------|-------------------------------|
+| `urls`            | list[string]  | **是**   | N/A     | 要爬取的URL列表。             |
+| `stream`          | boolean       | 否       | false   | 是否在完成时流式返回结果。    |
+| `concurrent_limit`| integer       | 否       | 3       | 最大并发爬取数。              |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"batch_crawl\", \"parameters\": {\"urls\": [\"https://example.com/page1\", \"https://example.com/page2\"], \"concurrent_limit\": 2}}}"
+  ```
+
+#### `crawl4ai` - `pdf_export` 模式
+
+- **描述**: 将网页导出为PDF格式。
+- **`parameters` 字典内容**:
+
+| 参数名              | 类型    | 是否必需 | 默认值  | 描述                          |
+|---------------------|---------|----------|---------|-------------------------------|
+| `url`               | string  | **是**   | N/A     | 要导出为PDF的URL。            |
+| `return_as_base64`  | boolean | 否       | true    | 是否返回base64字符串。        |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"pdf_export\", \"parameters\": {\"url\": \"https://example.com\", \"return_as_base64\": true}}}"
+  ```
+
+#### `crawl4ai` - `screenshot` 模式
+
+- **描述**: 捕获网页截图，支持压缩和质量控制。
+- **`parameters` 字典内容**:
+
+| 参数名              | 类型    | 是否必需 | 默认值  | 描述                          |
+|---------------------|---------|----------|---------|-------------------------------|
+| `url`               | string  | **是**   | N/A     | 要截图的URL。                 |
+| `full_page`         | boolean | 否       | true    | 是否捕获整个页面。            |
+| `return_as_base64`  | boolean | 否       | true    | 是否返回base64字符串。        |
+| `quality`           | integer | 否       | 70      | 截图JPEG质量 (10-100)。      |
+| `max_width`         | integer | 否       | 1920    | 截图最大宽度。                |
+| `max_height`        | integer | 否       | 5000    | 截图最大高度。                |
+
+- **使用示例 (`curl` for Windows CMD)**:
+  ```bash
+  curl -X POST "https://tools.10110531.xyz/api/v1/execute_tool" -H "Content-Type: application/json" -d "{\"tool_name\": \"crawl4ai\", \"parameters\": {\"mode\": \"screenshot\", \"parameters\": {\"url\": \"https://example.com\", \"quality\": 85, \"max_width\": 1200}}}"
+  ```
+
+---
+
+### 5.4 `python_sandbox`
 
 - **描述**: 在一个高度安全、隔离的 Docker 沙箱环境中执行 Python 代码，支持数据分析、可视化和生成 Base64 编码的 PNG 图像。
 - **API 端点**: `https://pythonsandbox.10110531.xyz/api/v1/python_sandbox` *(注意: 专用端点)*
@@ -216,7 +341,7 @@
   ```
 ---
 
-### 5.4 `stockfish_analyzer`
+### 5.5 `stockfish_analyzer`
 
 - **描述**: 一个强大的国际象棋分析工具，使用 Stockfish 引擎。通过不同的模式获取最佳走法、前几步走法或进行局面评估。
 - **输入参数 (`parameters`)**:
